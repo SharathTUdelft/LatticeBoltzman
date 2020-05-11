@@ -12,6 +12,27 @@ nb_prob = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
 height = 100 # lattice y length
 width = 200  # lattice x length
 
+ux0 = 1
+uy0 = 0
 # Creating the lattice with each point having nb_prob values associated with it
-lattice = np.array(nb_prob * width * height).reshape(height, width, len(nb_prob)) # number densities
+flow = np.array(nb_prob * width * height).reshape(height, width, len(nb_prob)) # initializing the lattice with probs
 
+# list of directions possible for the point in the lattice
+def lat_dir(ux, uy):
+    return np.array([uy-ux, uy, ux+uy, -ux, 0, ux, -uy-ux, -uy, -uy+ux])
+
+eu = lat_dir(ux0, 0)
+
+#constructing the list for vectors of each direction possible at each point in the lattice
+
+for e in range(9):  # e == 0-8 direction
+    flow[:, :, e] *= nb_prob[e] * (1 + 3 * eu[e] + 4.5 * eu[e] ** 2 - 1.5 * ux0 ** 2)
+
+flow_eq = np.ones((height, width, 9))
+
+
+#----- initalizing macroscopic quantities
+rho = np.ones((height, width))
+ux = (flow[:,:,1] + flow[:,:,5] + flow[:,:,8] - (flow[:,:,3] + flow[:,:,6] + flow[:,:,7])) / rho
+uy = (flow[:,:,2] + flow[:,:,5] + flow[:,:,6] - (flow[:,:,4] + flow[:,:,7] + flow[:,:,8])) / rho
+u = np.sqrt(ux**2 + uy**2)
