@@ -32,7 +32,48 @@ flow_eq = np.ones((height, width, 9))
 
 
 #----- initalizing macroscopic quantities
+
 rho = np.ones((height, width))
-ux = (flow[:,:,1] + flow[:,:,5] + flow[:,:,8] - (flow[:,:,3] + flow[:,:,6] + flow[:,:,7])) / rho
-uy = (flow[:,:,2] + flow[:,:,5] + flow[:,:,6] - (flow[:,:,4] + flow[:,:,7] + flow[:,:,8])) / rho
+ux = (flow[:, :, 1] + flow[:, :, 5] + flow[:, :, 8] - (flow[:, :, 3] + flow[:, :, 6] + flow[:, :, 7])) / rho
+uy = (flow[:, :, 2] + flow[:, :, 5] + flow[:, :, 6] - (flow[:, :, 4] + flow[:, :, 7] + flow[:, :, 8])) / rho
 u = np.sqrt(ux**2 + uy**2)
+
+#------ initializing the border
+
+domain = np.zeros((height, width), dtype=bool)
+bot_wall = domain[0, :] = True
+top_wall = domain[-1, :] = True
+domain_out = np.zeros((height, width), dtype=bool)
+
+
+#------- Sphere intialization
+
+circle = {
+            "centre": { "x": int(3*width/4), "y": int(height/2)},
+            "radius": 20
+          }
+
+
+def domain_barrier(circle, domain):
+
+    for x_cord in range(width):
+        for y_cord in range(height):
+            if np.sqrt((x_cord - circle["centre"]["x"])**2 + (y_cord - circle["centre"]["y"])**2) < circle["radius"]:
+                domain[y_cord, x_cord] = True
+
+
+domain_barrier(circle, domain)
+
+def extract_boundary(domain):
+    x_cord_list = []
+    y_cord_list = []
+    for x_cord in range(1, domain.shape[1]):
+        for y_cord in range(1, domain.shape[0]):
+            if domain[y_cord -1, x_cord]  and domain[y_cord, x_cord-1]:
+                if domain[y_cord + 1, x_cord] and domain[y_cord, x_cord + 1]:
+                    x_cord_list.append(x_cord)
+                    y_cord_list.append(y_cord)
+    domain[y_cord_list, x_cord_list] = False
+    return domain
+domain_boundary = extract_boundary(domain)
+print("This is domain")
