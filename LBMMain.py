@@ -118,9 +118,9 @@ class LBM:
     def flow_left(self):
         index_right= [2, 5, 8]
         index_left= [0, 3, 6]
-        for index in index_left:
-            self.f[:, -1, index] = self.density_number[index] * (1 + 3 * self.u0 - 1.5 * self.u0 ** 2 + 4.5 * self.u0 ** 2)
         for index in index_right:
+            self.f[:, -1, index] = self.density_number[index] * (1 + 3 * self.u0 - 1.5 * self.u0 ** 2 + 4.5 * self.u0 ** 2)
+        for index in index_left:
             self.f[:, -1, index] = self.density_number[index] * (1 - 3 * self.u0 - 1.5 * self.u0 ** 2 + 4.5 * self.u0 ** 2)
 
     def streaming(self):
