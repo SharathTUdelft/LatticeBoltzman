@@ -76,4 +76,3 @@ def extract_boundary(domain):
     domain[y_cord_list, x_cord_list] = False
     return domain
 domain_boundary = extract_boundary(domain)
-print("This is domain")
