@@ -73,133 +73,132 @@ class LBM:
         self.tau = self.v0 / self.cs ** 2 + self.dt / 2.  # relaxation constant
         self.omega = self.dt / self.tau
         self.density_number = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
+        self.rho = np.zeros((height, width))
+        self.f =  np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
+        self.f_eq = np.ones((height, width, 9))
 
-    @property
-    def f(self):
-        return np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
+
+    def rho_cal(self):  #check
+        for j in range(9):
+            self.rho[:, :] += self.f[:, :, j]
+
+    def vel_cal(self):
+        self.ux = (self.f[:,:,2] + self.f[:,:,5] + self.f[:,:,8] - (self.f[:,:,0] + self.f[:,:,3] + self.f[:,:,6])) / self.rho
+        self.uy = (self.f[:,:,0] + self.f[:,:,1] + self.f[:,:,2] - (self.f[:,:,6] + self.f[:,:,7] + self.f[:,:,8])) / self.rho
+        self.u = np.sqrt(self.ux**2 + self.uy**2)
+
+    def pr_cal(self):
+        outside = self.domain.domain_barrier_edge()
+        self.px =  self.f[outside][:,0] * -self.ux[outside] + self.f[outside][:,3] * -self.ux[outside] + self.f[outside][:,6] * -self.ux[outside]
+        self.py = self.f[outside][:, 0] * self.uy[outside] + self.f[outside][:, 6] * -self.uy[outside]
 
     def f_init(self):
         direction = self.lat_dir(self.u0, 0)
-        return self.lattice_vectors(direction, self.f, self.u0)
+        self.f = self.lattice_vectors(direction, self.f, self.u0, self.density_number, callback="init")
 
-    def lattice_vectors(self, direction, f, ux):
-        for e in range(9):  # e == 0-8 direction
-            f[:, :, e] *= self.density_number[e] * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * ux ** 2)
+    def lattice_vectors(self,direction, f, u, density_number, callback=None):
+        if callback == "init":
+            for e in range(9):  # e == 0-8 direction
+                f[:, :, e] *= (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
+        else:
+            for e in range(9):  # e == 0-8 direction
+                f[:, :, e] = density_number * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
+
         return f
+
+    def update_f(self):
+        direction = self.lat_dir(self.ux, self.uy)
+        self.lattice_vector_1(direction, self.f_eq, self.u)
+        self.f = self.f + self.omega * (self.f_eq - self.f)
+
+    def lattice_vector_1(self,direction, f, u):
+        for e in range(9):  # e == 0-8 direction
+            f[:, :, e] = self.rho * self.density_number[e] * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
+
+    def flow_left(self):
+        index_right= [2, 5, 8]
+        index_left= [0, 3, 6]
+        for index in index_left:
+            self.f[:, -1, index] = self.density_number[index] * (1 + 3 * self.u0 - 1.5 * self.u0 ** 2 + 4.5 * self.u0 ** 2)
+        for index in index_right:
+            self.f[:, -1, index] = self.density_number[index] * (1 - 3 * self.u0 - 1.5 * self.u0 ** 2 + 4.5 * self.u0 ** 2)
+
+    def streaming(self):
+        f_copy = self.f.copy()
+        for y in range(self.domain.height):
+            for x in range(width):
+                self.f[y, x] = self.stream(x, y, height, width, f_copy)
+
+    def boundary(self):
+        index_left = [0, 3, 6]
+        index_right = [8, 5, 2]
+        index_top = [6, 7, 8]
+        index_bot = [0, 1, 2]
+        f_copy = self.f.copy()
+        #Bottom wall
+        for index1, index2 in zip(index_top, index_bot):
+            self.f[self.domain.domain_botwall(), index1] = self.f[self.domain.domain_botwall(), index2]
+
+        # Top wall
+        for index1, index2 in zip(index_bot, index_top):
+            self.f[self.domain.domain_barrier_edge(), index1] = f_copy[self.domain.domain_barrier_edge(), index2]
+
+        # Sphere wall
+        for index1, index2 in zip(index_left, index_right):
+            self.f[self.domain.domain_topwall(), index1] = self.f[self.domain.domain_topwall(), index2]
+
+        # Sphere wall
+        for index1, index2 in zip(index_right, index_left):
+            self.f[self.domain.domain_topwall(), index1] = f_copy[self.domain.domain_topwall(), index2]
 
     @staticmethod
     def lat_dir(ux, uy):
         return np.array([uy - ux, uy, ux + uy, -ux, 0, ux, -uy - ux, -uy, -uy + ux])
 
+    def stream(self, x, y, height, width, f_copy):
+        return np.array([f_copy[min(y + 1, height - 1), x - 1, 0],
+                         f_copy[min(y + 1, height - 1), x, 1],
+                         f_copy[min(y + 1, height - 1), (x + 1) % width, 2],
+                         f_copy[y, x - 1, 3],
+                         f_copy[y, x, 4],
+                         f_copy[y, (x + 1) % width, 5],
+                         f_copy[max(y - 1, 0), x - 1, 6],
+                         f_copy[max(y - 1, 0), x, 7],
+                         f_copy[max(y - 1, 0), (x + 1) % width, 8]])
 
+    def animation(self):
+        X, Y = np.meshgrid(range(width), range(height))
+        self.run()
+        z = self.ux
+        fig = plt.figure()
+        ax = fig.gca()
+        surf = ax.imshow(z, cmap='jet', interpolation='none')  # , vmin=-.18 , vmax=.4081)
+        plt.xticks([])
+        plt.yticks([])
 
-        # class CircleBarrier:
-#     def __init__(self, domain, circle):
-#         if not isinstance(domain, Domain):
-#             raise TypeError("Domain is not a valid type")
-#         self.domain = domain
-#         self.circle = circle
-#
-#     def domain_barrier(self):
-#         _domain=  self.domain.domain()
-#         for x_cord in range(self.domain.width):
-#             for y_cord in range(self.domain.height):
-#                 if np.sqrt((x_cord - self.circle["centre"]["x"]) ** 2 + (y_cord - self.circle["centre"]["y"]) ** 2) < self.circle[
-#                     "radius"]:
-#                     _domain[y_cord, x_cord] = True
-#         return _domain
-#
-#     def domain_barrier_border(self):
-#         _domain = self.domain_barrier()
-#         x_cord_list = []
-#         y_cord_list = []
-#         for x_cord in range(1, _domain.shape[1]):
-#             for y_cord in range(1, _domain.shape[0]):
-#                 if _domain[y_cord -1, x_cord]  and _domain[y_cord, x_cord-1]:
-#                     if _domain[y_cord + 1, x_cord] and _domain[y_cord, x_cord + 1]:
-#                         x_cord_list.append(x_cord)
-#                         y_cord_list.append(y_cord)
-#             # domain_copy = _domain.copy()
-#         _domain[y_cord_list, x_cord_list] = False
-#         return _domain
-#
-#  # distance step
-#   # timestep
-#
-#
-#     # characteristic velocity
-#   # characteristic length
-#
-# L_D = l0 / L0        # lattice length
-# u_D = u0 / U0        # lattice velocity
-# v_D = v0 / L0 / U0   # lattice viscosity
-#
-# Re =u_D * L_D / v_D  # Reynold's number
-#
-# cs = U0 / np.sqrt(3)       # lattice speed of sound
-# tau = v0 / cs**2 + dt/2.   # relaxation constant
-# omega = dt / tau
-# initializer = { "ux0": 0.18, "uy0": 0, "dx": 0.10 , "dt": 0.012, "l0": 1., "v0":3e-6}
-#
-# def variables(init_dict):
-#     U0 = init_dict["dt"] / init_dict["dx"]
-#     L0 = width * dx
-#
-# class LBM:
-#
-#     def __init__(self, domain, barrier, initializer):
-#         if not isinstance(domain, Domain):
-#             raise TypeError("Domain is not a valid type")
-#         if not isinstance(barrier, CircleBarrier):
-#             raise TypeError("barrier is not a valid type")
-#         if not isinstance(initializer, dict):
-#             raise TypeError ("initializer should be a dict with keys u0, v0")
-#         self.domain  = domain
-#         self.barrier = barrier
-#         self.initializer = initializer
-#         self.rho = np.ones((self.domain.height, self.domain.width))
-#         self.nb_prob = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
-#         self.lattice_eq = np.ones((self.domain.height, self.domain.width, 9))
-#
-#     def lattice(self):
-#         return np.array(self.nb_prob * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, len(self.nb_prob))
-#
-#     def dir_initialize(self):
-#         direction = self.lat_dir(self.initializer["ux0"], self.initializer["uy0"])
-#         self.lattice_vectors(direction, self.lattice, self.initializer["ux0"])
-#         self.vel_cal()
-#
-#     def init_border(self):
-#         self.domain.domain()[0, :] = True
-#         self.domain.domain()[-1, :] = True
-#
-#     def vel_cal(self):
-#         self.ux = (self.lattice[:, :, 2] + self.lattice[:, :, 5] + self.lattice[:, :, 8] - (self.lattice[:, :, 0] + self.lattice[:, :, 3] + self.lattice[:, :, 6])) / self.rho  # eq.(7)
-#         self.uy = (self.lattice[:, :, 0] + self.lattice[:, :, 1] + self.lattice[:, :, 2] - (self.lattice[:, :, 6] + self.lattice[:, :, 7] + self.lattice[:, :, 8])) / self.rho
-#         self.u = u = np.sqrt(self.ux ** 2 + self.uy ** 2)
-#
-#
-#     def rho_cal(self):
-#         for j in range(9) :
-#             self.rho[:,:] += self.lattice[:,:,j]
-#
-#     def pr_cal(self):
-#
-#         self.px = self.lattice[self.barrier.domain_barrier_border][:, 0] * -self.ux[self.barrier.domain_barrier_border] + self.lattice[self.barrier.domain_barrier_border][:, 3] * -self.ux[self.barrier.domain_barrier_border] + self.lattice[self.barrier.domain_barrier_border][:, 6] * -self.ux[self.barrier.domain_barrier_border]
-#         self.px = self.lattice[self.barrier.domain_barrier_border][:, 0] * -self.uy[self.barrier.domain_barrier_border] + self.lattice[self.barrier.domain_barrier_border][:, 6] * -self.uy[self.barrier.domain_barrier_border]
-#
-#
-#
-#     def lattice_vectors(self, direction, lattice, ux):
-#         for e in range(9):  # e == 0-8 direction
-#             lattice[:, :, e] *= self.nb_prob[e] * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * ux ** 2)
-#
-#     @staticmethod
-#     def lat_dir( ux, uy):
-#         return np.array([uy - ux, uy, ux + uy, -ux, 0, ux, -uy - ux, -uy, -uy + ux])
-#
-#
-# #     return np.array([uy-ux, uy, ux+uy, -ux, 0, ux, -uy-ux, -uy, -uy+ux])
+        def update_data(i, z, surf):
+            self.run()
+            z = self.ux
+            z[self.domain.domain_barrier()] = -.35
+            ax.clear()
+            ax.text(0, height - 1, ('frame {}'.format(i)))
+            plt.xticks([])
+            plt.yticks([])
+            plt.title('$Re = {}$'.format(self.Re))
+            surf = ax.imshow(z, cmap='jet', interpolation='none')  # , vmin=-.18 , vmax=.4081)
+            return surf,
+        anim = manimation.FuncAnimation(fig, update_data, fargs=(z, surf), interval=1, blit=False, repeat=True)
+        plt.show()
+
+    def run(self):
+        self.f_init()
+        self.rho_cal()# sets rho
+        self.vel_cal()# sets vel
+        self.pr_cal()# sets pressure
+        self.update_f()# updates f
+        self.flow_left()# check
+        self.streaming()# check
+        self.boundary()# apply boundary condition
 
 
 if __name__ == "__main__":
@@ -211,9 +210,11 @@ if __name__ == "__main__":
     }
     domain = Domain(width=width, height=height, circle=circle)
 
-
     lbm = LBM(domain)
-    l1 = lbm.f_init()
+    lbm.animation()
+
+
+
     print("debug")
 
 
