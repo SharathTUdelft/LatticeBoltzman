@@ -73,6 +73,8 @@ def extract_boundary(domain):
                 if domain[y_cord + 1, x_cord] and domain[y_cord, x_cord + 1]:
                     x_cord_list.append(x_cord)
                     y_cord_list.append(y_cord)
-    domain[y_cord_list, x_cord_list] = False
-    return domain
+    domain_copy = domain.copy()
+    domain_copy[y_cord_list, x_cord_list] = False
+    return domain_copy
 domain_boundary = extract_boundary(domain)
+print("Debug")
