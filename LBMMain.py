@@ -73,13 +73,13 @@ class LBM:
         self.tau = self.v0 / self.cs ** 2 + self.dt / 2.  # relaxation constant
         self.omega = self.dt / self.tau
         self.density_number = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
-        self.rho = np.ones((self.domain.height, self.domain.width))
         self.f =  np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
         self.f_eq = np.ones((height, width, 9))
 
         self.f_init()
+        self.rho_cal()  # sets rho
         self.vel_cal()  # sets vel
-        self.rho_cal()# sets rho
+
 
 
     def rho_cal(self):  #check
