@@ -77,6 +77,10 @@ class LBM:
         self.f =  np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
         self.f_eq = np.ones((height, width, 9))
 
+        self.f_init()
+        self.vel_cal()  # sets vel
+        self.rho_cal()# sets rho
+
 
     def rho_cal(self):  #check
         self.rho = np.zeros((height, width))
@@ -127,7 +131,7 @@ class LBM:
     def streaming(self):
         f_copy = self.f.copy()
         for y in range(self.domain.height):
-            for x in range(width):
+            for x in range(self.domain.width):
                 self.f[y, x] = self.stream(x, y, height, width, f_copy)
 
     def boundary(self):
@@ -136,27 +140,36 @@ class LBM:
         index_top = [6, 7, 8]
         index_bot = [0, 1, 2]
         f_copy = self.f.copy()
+
+        topwall = self.domain.domain_topwall()
+        botwall = self.domain.domain_botwall()
+        barrier_outside = self.domain.domain_barrier_edge()
         #Bottom wall
         for index1, index2 in zip(index_top, index_bot):
-            self.f[self.domain.domain_botwall(), index1] = self.f[self.domain.domain_botwall(), index2]
+            self.f[self.domain.domain_botwall(), index1] = self.f[botwall, index2]
 
         # Top wall
         for index1, index2 in zip(index_bot, index_top):
-            self.f[self.domain.domain_barrier_edge(), index1] = f_copy[self.domain.domain_barrier_edge(), index2]
+            self.f[self.domain.domain_topwall(), index1] = f_copy[topwall, index2]
 
         # Sphere wall
         for index1, index2 in zip(index_left, index_right):
-            self.f[self.domain.domain_topwall(), index1] = self.f[self.domain.domain_topwall(), index2]
+            self.f[self.domain.domain_barrier_edge(), index1] = self.f[barrier_outside, index2]
 
         # Sphere wall
         for index1, index2 in zip(index_right, index_left):
-            self.f[self.domain.domain_topwall(), index1] = f_copy[self.domain.domain_topwall(), index2]
+            self.f[self.domain.domain_barrier_edge(), index1] = f_copy[barrier_outside, index2]
+
+        self.f[barrier_outside, 1] = self.f[barrier_outside, 7]
+        self.f[barrier_outside, 7] = f_copy[barrier_outside, 1]
 
     @staticmethod
     def lat_dir(ux, uy):
         return np.array([uy - ux, uy, ux + uy, -ux, 0, ux, -uy - ux, -uy, -uy + ux])
 
-    def stream(self, x, y, height, width, f_copy):
+    @staticmethod
+    @jit(nopython=True)
+    def stream(x, y, height, width, f_copy):
         return np.array([f_copy[min(y + 1, height - 1), x - 1, 0],
                          f_copy[min(y + 1, height - 1), x, 1],
                          f_copy[min(y + 1, height - 1), (x + 1) % width, 2],
@@ -191,10 +204,12 @@ class LBM:
         anim = manimation.FuncAnimation(fig, update_data, fargs=(z, surf), interval=1, blit=False, repeat=True)
         plt.show()
 
+
     def run(self):
-        self.f_init()
+
+        self.vel_cal()  # sets vel
         self.rho_cal()# sets rho
-        self.vel_cal()# sets vel
+        self.vel_cal()  # sets vel
         self.pr_cal()# sets pressure
         self.update_f()# updates f
         self.flow_left()# check
@@ -212,8 +227,6 @@ if __name__ == "__main__":
     domain = Domain(width=width, height=height, circle=circle)
 
     lbm = LBM(domain)
-    lbm.f_init()
-    lbm.vel_cal()
     lbm.animation()
 
 
