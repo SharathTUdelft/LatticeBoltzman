@@ -73,7 +73,7 @@ class LBM:
         self.tau = self.v0 / self.cs ** 2 + self.dt / 2.  # relaxation constant
         self.omega = self.dt / self.tau
         self.density_number = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
-        self.rho = np.ones((height, width))
+        self.rho = np.ones((self.domain.height, self.domain.width))
         self.f =  np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
         self.f_eq = np.ones((height, width, 9))
 
@@ -83,7 +83,7 @@ class LBM:
 
 
     def rho_cal(self):  #check
-        self.rho = np.zeros((height, width))
+        self.rho = np.zeros((self.domain.height, self.domain.width))
         for j in range(9):
             self.rho[:, :] += self.f[:, :, j]
 
@@ -99,24 +99,19 @@ class LBM:
 
     def f_init(self):
         direction = self.lat_dir(self.u0, 0)
-        self.f = self.lattice_vectors(direction, self.f, self.u0, self.density_number, callback="init")
+        self.f = self.lattice_vectors(direction, self.f, self.u0, self.density_number)
 
-    def lattice_vectors(self,direction, f, u, density_number, callback=None):
-        if callback == "init":
-            for e in range(9):  # e == 0-8 direction
-                f[:, :, e] *= (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
-        else:
-            for e in range(9):  # e == 0-8 direction
-                f[:, :, e] = density_number * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
-
+    def lattice_vectors(self,direction, f, u, density_number):
+        for e in range(9):  # e == 0-8 direction
+            f[:, :, e] *= (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
         return f
 
     def update_f(self):
         direction = self.lat_dir(self.ux, self.uy)
-        self.lattice_vector_1(direction, self.f_eq, self.u)
+        self.lattice_vector_vel(direction, self.f_eq, self.u)
         self.f = self.f + self.omega * (self.f_eq - self.f)
 
-    def lattice_vector_1(self,direction, f, u):
+    def lattice_vector_vel(self,direction, f, u):
         for e in range(9):  # e == 0-8 direction
             f[:, :, e] = self.rho * self.density_number[e] * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
 
@@ -146,19 +141,19 @@ class LBM:
         barrier_outside = self.domain.domain_barrier_edge()
         #Bottom wall
         for index1, index2 in zip(index_top, index_bot):
-            self.f[self.domain.domain_botwall(), index1] = self.f[botwall, index2]
+            self.f[botwall, index1] = self.f[botwall, index2]
 
         # Top wall
         for index1, index2 in zip(index_bot, index_top):
-            self.f[self.domain.domain_topwall(), index1] = f_copy[topwall, index2]
+            self.f[topwall, index1] = f_copy[topwall, index2]
 
         # Sphere wall
         for index1, index2 in zip(index_left, index_right):
-            self.f[self.domain.domain_barrier_edge(), index1] = self.f[barrier_outside, index2]
+            self.f[barrier_outside, index1] = self.f[barrier_outside, index2]
 
         # Sphere wall
         for index1, index2 in zip(index_right, index_left):
-            self.f[self.domain.domain_barrier_edge(), index1] = f_copy[barrier_outside, index2]
+            self.f[barrier_outside, index1] = f_copy[barrier_outside, index2]
 
         self.f[barrier_outside, 1] = self.f[barrier_outside, 7]
         self.f[barrier_outside, 7] = f_copy[barrier_outside, 1]
@@ -181,7 +176,7 @@ class LBM:
                          f_copy[max(y - 1, 0), (x + 1) % width, 8]])
 
     def animation(self):
-        X, Y = np.meshgrid(range(width), range(height))
+        X, Y = np.meshgrid(range(self.domain.width), range(self.domain.height))
         self.run()
         z = self.ux
         fig = plt.figure()
