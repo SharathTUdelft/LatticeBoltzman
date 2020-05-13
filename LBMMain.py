@@ -73,12 +73,13 @@ class LBM:
         self.tau = self.v0 / self.cs ** 2 + self.dt / 2.  # relaxation constant
         self.omega = self.dt / self.tau
         self.density_number = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
-        self.rho = np.zeros((height, width))
+        self.rho = np.ones((height, width))
         self.f =  np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
         self.f_eq = np.ones((height, width, 9))
 
 
     def rho_cal(self):  #check
+        self.rho = np.zeros((height, width))
         for j in range(9):
             self.rho[:, :] += self.f[:, :, j]
 
@@ -211,8 +212,9 @@ if __name__ == "__main__":
     domain = Domain(width=width, height=height, circle=circle)
 
     lbm = LBM(domain)
+    lbm.f_init()
+    lbm.vel_cal()
     lbm.animation()
-
 
 
     print("debug")
