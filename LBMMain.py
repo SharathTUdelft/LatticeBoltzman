@@ -42,6 +42,7 @@ class Domain:
                     _domain[y_cord, x_cord] = True
         return _domain
 
+
     @lazy
     def domain_barrier_edge(self):
         _domain = self.domain_barrier().copy() # work with copy as self.domain_barrier is lazy itself
@@ -90,39 +91,45 @@ class LBM:
         self.vel_cal()  # sets vel
 
 
-
     def rho_cal(self):  #check
         self.rho = np.zeros((self.domain.height, self.domain.width))
         for j in range(9):
             self.rho[:, :] += self.f[:, :, j]
+
 
     def vel_cal(self):
         self.ux = (self.f[:,:,2] + self.f[:,:,5] + self.f[:,:,8] - (self.f[:,:,0] + self.f[:,:,3] + self.f[:,:,6])) / self.rho
         self.uy = (self.f[:,:,0] + self.f[:,:,1] + self.f[:,:,2] - (self.f[:,:,6] + self.f[:,:,7] + self.f[:,:,8])) / self.rho
         self.u = np.sqrt(self.ux**2 + self.uy**2)
 
+
     def pr_cal(self):
         outside = self.domain.domain_barrier_edge()
         self.px =  self.f[outside][:,0] * -self.ux[outside] + self.f[outside][:,3] * -self.ux[outside] + self.f[outside][:,6] * -self.ux[outside]
         self.py = self.f[outside][:, 0] * self.uy[outside] + self.f[outside][:, 6] * -self.uy[outside]
 
+
     def f_init(self):
         direction = self.lat_dir(self.u0, 0)
         self.f = self.lattice_vectors(direction, self.f, self.u0, self.density_number)
 
-    def lattice_vectors(self,direction, f, u, density_number):
+
+    def lattice_vectors(self,direction, f, u):
         for e in range(9):  # e == 0-8 direction
             f[:, :, e] *= (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
         return f
+
 
     def update_f(self):
         direction = self.lat_dir(self.ux, self.uy)
         self.lattice_vector_vel(direction, self.f_eq, self.u)
         self.f = self.f + self.omega * (self.f_eq - self.f)
 
+
     def lattice_vector_vel(self,direction, f, u):
         for e in range(9):  # e == 0-8 direction
             f[:, :, e] = self.rho * self.density_number[e] * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
+
 
     def flow_left(self):
         index_right= [2, 5, 8]
@@ -132,11 +139,13 @@ class LBM:
         for index in index_left:
             self.f[:, -1, index] = self.density_number[index] * (1 - 3 * self.u0 - 1.5 * self.u0 ** 2 + 4.5 * self.u0 ** 2)
 
+
     def streaming(self):
         f_copy = self.f.copy()
         for y in range(self.domain.height):
             for x in range(self.domain.width):
                 self.f[y, x] = self.stream(x, y, height, width, f_copy)
+
 
     def boundary(self):
         index_left = [0, 3, 6]
@@ -171,6 +180,7 @@ class LBM:
     def lat_dir(ux, uy):
         return np.array([uy - ux, uy, ux + uy, -ux, 0, ux, -uy - ux, -uy, -uy + ux])
 
+
     @staticmethod
     @jit(nopython=True)
     def stream(x, y, height, width, f_copy):
@@ -184,6 +194,7 @@ class LBM:
                          f_copy[max(y - 1, 0), x, 7],
                          f_copy[max(y - 1, 0), (x + 1) % width, 8]])
 
+
     def animation(self):
         X, Y = np.meshgrid(range(self.domain.width), range(self.domain.height))
         self.run()
@@ -193,6 +204,7 @@ class LBM:
         surf = ax.imshow(z, cmap='jet', interpolation='none')  # , vmin=-.18 , vmax=.4081)
         plt.xticks([])
         plt.yticks([])
+
 
         def update_data(i, z, surf):
             self.run()
