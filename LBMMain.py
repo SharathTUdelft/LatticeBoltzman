@@ -2,53 +2,49 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 from numba import jit
+from utils import lazy
 
-def lazy_property(fn):
-    '''Decorator that makes a property lazy-evaluated.
-    '''
-    attr_name = '_lazy_' + fn.__name__
-    print(fn)
 
-    @property
-    def _lazy_property(self):
-        if not hasattr(self, attr_name):
-            setattr(self, attr_name, fn(self))
-        return getattr(self, attr_name)
-    return _lazy_property
+
+
 
 class Domain:
+
+
     def __init__(self, height=100, width=200, circle = None):
         self.height = height
         self.width = width
         self.circle = circle
 
-    @property
+    @lazy
     def domain(self):
         return np.zeros((self.height, self.width), dtype=bool)
 
-    def domain_topwall(self):
-        d_top = self.domain
+    @lazy
+    def domain_botwall(self):
+        d_top = self.domain().copy()
         d_top[-1, :] = True
         return d_top
 
-    def domain_botwall(self):
-        d_bot = self.domain
+    @lazy
+    def domain_topwall(self):
+        d_bot = self.domain().copy()
         d_bot[0, :] = True
         return d_bot
 
-    @lazy_property
+    @lazy
     def domain_barrier(self):
-        _domain = self.domain
+        _domain = self.domain().copy() # work with copy as self.domain is lazy itself
         for x_cord in range(self.width):
             for y_cord in range(self.height):
                 if np.sqrt((x_cord - self.circle["centre"]["x"]) ** 2 + (y_cord - self.circle["centre"]["y"]) ** 2) <\
                         self.circle["radius"]:
                     _domain[y_cord, x_cord] = True
-        return  _domain
+        return _domain
 
-    @lazy_property
+    @lazy
     def domain_barrier_edge(self):
-        _domain = self.domain_barrier
+        _domain = self.domain_barrier().copy() # work with copy as self.domain_barrier is lazy itself
         x_cord_list = []
         y_cord_list = []
         for x_cord in range(1, _domain.shape[1]):
@@ -57,7 +53,6 @@ class Domain:
                     if _domain[y_cord + 1, x_cord] and _domain[y_cord, x_cord + 1]:
                         x_cord_list.append(x_cord)
                         y_cord_list.append(y_cord)
-
         _domain[y_cord_list, x_cord_list] = False
         return _domain
 
@@ -107,7 +102,7 @@ class LBM:
         self.u = np.sqrt(self.ux**2 + self.uy**2)
 
     def pr_cal(self):
-        outside = self.domain.domain_barrier_edge
+        outside = self.domain.domain_barrier_edge()
         self.px =  self.f[outside][:,0] * -self.ux[outside] + self.f[outside][:,3] * -self.ux[outside] + self.f[outside][:,6] * -self.ux[outside]
         self.py = self.f[outside][:, 0] * self.uy[outside] + self.f[outside][:, 6] * -self.uy[outside]
 
@@ -152,7 +147,7 @@ class LBM:
 
         topwall = self.domain.domain_topwall()
         botwall = self.domain.domain_botwall()
-        barrier_outside = self.domain.domain_barrier_edge
+        barrier_outside = self.domain.domain_barrier_edge()
         #Bottom wall
         for index1, index2 in zip(index_top, index_bot):
             self.f[botwall, index1] = self.f[botwall, index2]
@@ -202,7 +197,7 @@ class LBM:
         def update_data(i, z, surf):
             self.run()
             z = self.ux
-            z[self.domain.domain_barrier] = -.35
+            z[self.domain.domain_barrier()] = -.35
             ax.clear()
             ax.text(0, height - 1, ('frame {}'.format(i)))
             plt.xticks([])
@@ -237,7 +232,9 @@ if __name__ == "__main__":
 
     lbm = LBM(domain)
     lbm.animation()
-
+    # domain.domain_barrier()
+    # domain.domain_barrier_edge()
+    # domain.domain_barrier()
 
     print("debug")
 
