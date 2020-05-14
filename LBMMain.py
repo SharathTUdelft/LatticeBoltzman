@@ -2,39 +2,49 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 from numba import jit
+from utils import lazy
+
+
+
 
 
 class Domain:
+
+
     def __init__(self, height=100, width=200, circle = None):
         self.height = height
         self.width = width
         self.circle = circle
 
-    @property
+    @lazy
     def domain(self):
         return np.zeros((self.height, self.width), dtype=bool)
 
-    def domain_topwall(self):
-        d_top = self.domain
+    @lazy
+    def domain_botwall(self):
+        d_top = self.domain().copy()
         d_top[-1, :] = True
         return d_top
 
-    def domain_botwall(self):
-        d_bot = self.domain
+    @lazy
+    def domain_topwall(self):
+        d_bot = self.domain().copy()
         d_bot[0, :] = True
         return d_bot
 
+    @lazy
     def domain_barrier(self):
-        _domain = self.domain
+        _domain = self.domain().copy() # work with copy as self.domain is lazy itself
         for x_cord in range(self.width):
             for y_cord in range(self.height):
                 if np.sqrt((x_cord - self.circle["centre"]["x"]) ** 2 + (y_cord - self.circle["centre"]["y"]) ** 2) <\
                         self.circle["radius"]:
                     _domain[y_cord, x_cord] = True
-        return  _domain
+        return _domain
 
+    @lazy
     def domain_barrier_edge(self):
-        _domain = self.domain_barrier()
+        _domain = self.domain_barrier().copy() # work with copy as self.domain_barrier is lazy itself
         x_cord_list = []
         y_cord_list = []
         for x_cord in range(1, _domain.shape[1]):
@@ -43,7 +53,6 @@ class Domain:
                     if _domain[y_cord + 1, x_cord] and _domain[y_cord, x_cord + 1]:
                         x_cord_list.append(x_cord)
                         y_cord_list.append(y_cord)
-
         _domain[y_cord_list, x_cord_list] = False
         return _domain
 
@@ -73,17 +82,17 @@ class LBM:
         self.tau = self.v0 / self.cs ** 2 + self.dt / 2.  # relaxation constant
         self.omega = self.dt / self.tau
         self.density_number = [1/36., 1/9., 1/36., 1/9., 4/9., 1/9., 1/36., 1/9., 1/36.]
-        self.rho = np.ones((height, width))
         self.f =  np.array(self.density_number * self.domain.width * self.domain.height).reshape(self.domain.height, self.domain.width, 9)
         self.f_eq = np.ones((height, width, 9))
 
         self.f_init()
+        self.rho_cal()  # sets rho
         self.vel_cal()  # sets vel
-        self.rho_cal()# sets rho
+
 
 
     def rho_cal(self):  #check
-        self.rho = np.zeros((height, width))
+        self.rho = np.zeros((self.domain.height, self.domain.width))
         for j in range(9):
             self.rho[:, :] += self.f[:, :, j]
 
@@ -99,24 +108,19 @@ class LBM:
 
     def f_init(self):
         direction = self.lat_dir(self.u0, 0)
-        self.f = self.lattice_vectors(direction, self.f, self.u0, self.density_number, callback="init")
+        self.f = self.lattice_vectors(direction, self.f, self.u0, self.density_number)
 
-    def lattice_vectors(self,direction, f, u, density_number, callback=None):
-        if callback == "init":
-            for e in range(9):  # e == 0-8 direction
-                f[:, :, e] *= (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
-        else:
-            for e in range(9):  # e == 0-8 direction
-                f[:, :, e] = density_number * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
-
+    def lattice_vectors(self,direction, f, u, density_number):
+        for e in range(9):  # e == 0-8 direction
+            f[:, :, e] *= (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
         return f
 
     def update_f(self):
         direction = self.lat_dir(self.ux, self.uy)
-        self.lattice_vector_1(direction, self.f_eq, self.u)
+        self.lattice_vector_vel(direction, self.f_eq, self.u)
         self.f = self.f + self.omega * (self.f_eq - self.f)
 
-    def lattice_vector_1(self,direction, f, u):
+    def lattice_vector_vel(self,direction, f, u):
         for e in range(9):  # e == 0-8 direction
             f[:, :, e] = self.rho * self.density_number[e] * (1 + 3 * direction[e] + 4.5 * direction[e] ** 2 - 1.5 * u ** 2)
 
@@ -146,19 +150,19 @@ class LBM:
         barrier_outside = self.domain.domain_barrier_edge()
         #Bottom wall
         for index1, index2 in zip(index_top, index_bot):
-            self.f[self.domain.domain_botwall(), index1] = self.f[botwall, index2]
+            self.f[botwall, index1] = self.f[botwall, index2]
 
         # Top wall
         for index1, index2 in zip(index_bot, index_top):
-            self.f[self.domain.domain_topwall(), index1] = f_copy[topwall, index2]
+            self.f[topwall, index1] = f_copy[topwall, index2]
 
         # Sphere wall
         for index1, index2 in zip(index_left, index_right):
-            self.f[self.domain.domain_barrier_edge(), index1] = self.f[barrier_outside, index2]
+            self.f[barrier_outside, index1] = self.f[barrier_outside, index2]
 
         # Sphere wall
         for index1, index2 in zip(index_right, index_left):
-            self.f[self.domain.domain_barrier_edge(), index1] = f_copy[barrier_outside, index2]
+            self.f[barrier_outside, index1] = f_copy[barrier_outside, index2]
 
         self.f[barrier_outside, 1] = self.f[barrier_outside, 7]
         self.f[barrier_outside, 7] = f_copy[barrier_outside, 1]
@@ -181,7 +185,7 @@ class LBM:
                          f_copy[max(y - 1, 0), (x + 1) % width, 8]])
 
     def animation(self):
-        X, Y = np.meshgrid(range(width), range(height))
+        X, Y = np.meshgrid(range(self.domain.width), range(self.domain.height))
         self.run()
         z = self.ux
         fig = plt.figure()
@@ -228,7 +232,9 @@ if __name__ == "__main__":
 
     lbm = LBM(domain)
     lbm.animation()
-
+    # domain.domain_barrier()
+    # domain.domain_barrier_edge()
+    # domain.domain_barrier()
 
     print("debug")
 
