@@ -3,6 +3,18 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 from numba import jit
 
+def lazy_property(fn):
+    '''Decorator that makes a property lazy-evaluated.
+    '''
+    attr_name = '_lazy_' + fn.__name__
+    print(fn)
+
+    @property
+    def _lazy_property(self):
+        if not hasattr(self, attr_name):
+            setattr(self, attr_name, fn(self))
+        return getattr(self, attr_name)
+    return _lazy_property
 
 class Domain:
     def __init__(self, height=100, width=200, circle = None):
@@ -24,6 +36,7 @@ class Domain:
         d_bot[0, :] = True
         return d_bot
 
+    @lazy_property
     def domain_barrier(self):
         _domain = self.domain
         for x_cord in range(self.width):
@@ -33,8 +46,9 @@ class Domain:
                     _domain[y_cord, x_cord] = True
         return  _domain
 
+    @lazy_property
     def domain_barrier_edge(self):
-        _domain = self.domain_barrier()
+        _domain = self.domain_barrier
         x_cord_list = []
         y_cord_list = []
         for x_cord in range(1, _domain.shape[1]):
@@ -93,7 +107,7 @@ class LBM:
         self.u = np.sqrt(self.ux**2 + self.uy**2)
 
     def pr_cal(self):
-        outside = self.domain.domain_barrier_edge()
+        outside = self.domain.domain_barrier_edge
         self.px =  self.f[outside][:,0] * -self.ux[outside] + self.f[outside][:,3] * -self.ux[outside] + self.f[outside][:,6] * -self.ux[outside]
         self.py = self.f[outside][:, 0] * self.uy[outside] + self.f[outside][:, 6] * -self.uy[outside]
 
@@ -138,7 +152,7 @@ class LBM:
 
         topwall = self.domain.domain_topwall()
         botwall = self.domain.domain_botwall()
-        barrier_outside = self.domain.domain_barrier_edge()
+        barrier_outside = self.domain.domain_barrier_edge
         #Bottom wall
         for index1, index2 in zip(index_top, index_bot):
             self.f[botwall, index1] = self.f[botwall, index2]
@@ -188,7 +202,7 @@ class LBM:
         def update_data(i, z, surf):
             self.run()
             z = self.ux
-            z[self.domain.domain_barrier()] = -.35
+            z[self.domain.domain_barrier] = -.35
             ax.clear()
             ax.text(0, height - 1, ('frame {}'.format(i)))
             plt.xticks([])
