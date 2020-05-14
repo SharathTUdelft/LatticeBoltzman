@@ -1,4 +1,4 @@
-def lazy(fn):
+def lazy(fn, *args, **kwargs):
     '''Decorator that makes a method lazy-evaluated.
     # because of lazification its better to work with copies because the originals were being modified
     and these changes were being saved to the object
@@ -7,7 +7,7 @@ def lazy(fn):
     print(fn)
 
 
-    def _lazy(self):
+    def _lazy(self, *args, **kwargs):
         if not hasattr(self, attr_name):
             setattr(self, attr_name, fn(self))
         return getattr(self, attr_name)
