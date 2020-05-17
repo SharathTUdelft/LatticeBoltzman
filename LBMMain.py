@@ -2,16 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 from numba import jit
-from utils import lazy
+from utils import lazy, Singleton
 
 
+class Domain(Singleton):
 
-
-
-class Domain:
-
-
-    def __init__(self, height=100, width=200, circle = None):
+    def __init__(self, height=100, width=200, circle=None):
         self.height = height
         self.width = width
         self.circle = circle
