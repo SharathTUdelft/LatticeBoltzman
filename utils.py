@@ -12,3 +12,16 @@ def lazy(fn, *args, **kwargs):
             setattr(self, attr_name, fn(self))
         return getattr(self, attr_name)
     return _lazy
+
+class Singleton:
+    """
+    Metaclass to make sure that only one instance of the derived classes are created
+    """
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            print('Creating the object')
+            cls._instance = super(Singleton, cls).__new__(cls)
+            # Put any initialization here.
+        return cls._instance
