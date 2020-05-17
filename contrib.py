@@ -11,7 +11,6 @@ class DomainCircle(Domain):
         self.height = height
         self.width = width
 
-
     @lazy
     def domain(self):
         return np.zeros((self.height, self.width), dtype=bool)
