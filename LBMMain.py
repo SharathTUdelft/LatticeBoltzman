@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as manimation
 from numba import jit
-from contrib import Domain
+from contrib import DomainCircle, DomainBox
 
 class LBM:
 
@@ -169,7 +169,8 @@ if __name__ == "__main__":
     width = 200
     height = 100
 
-    domain = Domain(width=width, height=height)
+    # domain = DomainCircle(width=width, height=height)
+    domain = DomainBox(width=width, height=height)
 
     lbm = LBM(domain)
     lbm.animation()
