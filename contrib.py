@@ -1,13 +1,16 @@
 import numpy as np
+from abstract import Domain
 from utils import lazy, Singleton
-from barriers import CircleBarrier
+from barriers import CircleBarrier, BoxBarrier
 
 
-class Domain(Singleton):
+class DomainCircle(Domain):
 
-    def __init__(self, height=100, width=200):
+    def __init__(self, height, width):
+        Domain.__init__(self, height=100, width=200)
         self.height = height
         self.width = width
+
 
     @lazy
     def domain(self):
@@ -45,6 +48,19 @@ class Domain(Singleton):
         return _domain
 
 
+class DomainBox(Domain):
+
+    def __init__(self, height, width, box_height=10, box_width= 20):
+        Domain.__init__(self, height=100, width=200)
+        self.box_height = box_height
+        self.box_width = box_width
+        self.height = height
+        self.width = width
+
+    @lazy
+    def domain_barrier(self):
+        position = (int(3 * self.width / 4), int(self.height - 2 * self.box_height))
+        return BoxBarrier(domain=self.domain().copy(), position=position, box_height=  self.box_height,box_width=self.box_width,  height =self.height, width = self.width ).apply_barrier()
 
 
 
